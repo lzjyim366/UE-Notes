@@ -287,9 +287,79 @@ We use the template to create a global sampler using **point sampling**, we have
 
 ### 四、新建材质节点
 
-MaterialExpressionToonshadingCustomOutput.h
+#### 1.MaterialExpressionToonshadingCustomOutput.h
 
- Engine/Source/Runtime/Engine/Classes/Materials/
+ Engine/Source/Runtime/Engine/Classes/Materials/MaterialExpressionToonshadingCustomOutput.h
 
-E:\UEtbb\UE\Engine\Source\Runtime\Engine\Classes\Materials\
+可以抄这个文件夹下面别的文件。
+
+![materialOutput.png](img/addResource/materialOutput.png)
+
+首先，我们包括所有需要的依赖项。包括父类还有一些别的。
+
+然后我们创建一个新的 UCLASS（），名为 UMaterialExpressionCelShadingOutput，它是类 UMaterialExpressionCustomOutput 的子级。UMaterialExpressionCustomOutput 是一个自动生成 HLSL getter 的类，非常好用。它将定义一个新函数并在其中添加您的数学逻辑。
+
+然后，您可以在basepass中调用它，like any classic material pin。
+
+#### 2.MaterialExpressions.cpp
+
+上一步只是添加了.h，我们要在哪里实现它？UE5中所有节点都是在MaterialExpressions.cpp里面实现的，这个文件巨长，有25000行，我们在MaterialExpressions.cpp里include刚刚创建的.h再在后面添加实现即可。
+
+**注意: 文件的最后一行有个undef宏，不要把代码粘在它下面了**
+
+```c++
+//构造函数
+UMaterialExpressionToonShadingOutput::UMaterialExpressionToonShadingOutput(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Utility;
+		FConstructorStatics(const FString& DisplayName, const FString& FunctionName)
+			: NAME_Utility(LOCTEXT("Utility", "Utility"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics(GetDisplayName(), GetFunctionName());
+
+	MenuCategories.Add(ConstructorStatics.NAME_Utility);
+
+	bCollapsed = true;
+
+	//我们不需要输出
+	Outputs.Reset();
+#endif
+}
+
+//编译
+#if WITH_EDITOR
+int32  UMaterialExpressionToonShadingOutput::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (Input.GetTracedInput().Expression)
+	{
+		return Compiler->CustomOutput(this, OutputIndex, Input.Compile(Compiler));
+	}
+	else
+	{//没有输入则抛出错误
+		return CompilerError(Compiler, TEXT("Curve selection is missing"));
+	}
+	return INDEX_NONE;
+}
+
+//节点名称
+void UMaterialExpressionToonShadingOutput::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(FString(TEXT("Toonshading")));
+}
+
+//只是input的getter，我们只输入一个，所以只返回一个intput member就可以了。
+FExpressionInput* UMaterialExpressionToonShadingOutput::GetInput(int32 InputIndex)
+{
+	return &Input;
+}
+#endif // WITH_EDITOR
+//change end
+```
 
